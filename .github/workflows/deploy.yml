@@ -1,0 +1,47 @@
+# GitHub Actions workflow: serve the model in a container, and check that it answers.
+
+name: Deploy
+
+# Run when you press the `Run workflow` button.
+on:
+  workflow_dispatch:
+
+# Allow the job to download the model from the artifacts of the training runs.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # The training run whose `model` artifact to serve. `latest` takes the newest one.
+      MODEL_RUN_ID: latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image
+        run: docker build -f deployment.Dockerfile -t iris-api .
+      # The container downloads the model when it starts, with the job's token.
+      # `-e NAME` passes the variable of the job into the container.
+      - name: Start the container
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: docker run -d --name api -p 8000:8000 -e GITHUB_TOKEN -e GITHUB_REPOSITORY -e MODEL_RUN_ID iris-api
+      # Downloading the model and starting the server take a few seconds: retry until the API answers.
+      # TODO (Task 3): wait for `/health` instead.
+      - name: Wait for the API
+        run: curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 -o /dev/null http://localhost:8000/docs
+      - name: Classify two samples
+        run: |
+          predict() {
+            curl --fail --silent --show-error -X POST http://localhost:8000/predict \
+              -H "Content-Type: application/json" -d "$2" | tee response.json
+            echo
+            jq -e --arg expected "$1" '.prediction == $expected' response.json
+          }
+          predict setosa '{"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}'
+          predict virginica '{"sepal_length": 6.3, "sepal_width": 3.3, "petal_length": 6.0, "petal_width": 2.5}'
+      # Show what the container printed, also when a step above failed.
+      - name: Show the container logs
+        if: always()
+        run: docker logs api

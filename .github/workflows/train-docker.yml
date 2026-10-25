@@ -1,0 +1,45 @@
+# GitHub Actions workflow: train the model in an image from the registry.
+
+name: Train (Docker)
+
+on:
+  # Run when you press the `Run workflow` button, with the image tag of your choice.
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag: a full commit SHA or a branch name"
+        required: true
+        type: string
+  # Run when another workflow calls this one, e.g. `docker.yml`.
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+
+# Allow the job to pull images from the GitHub container registry (GHCR).
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  # No checkout: the code and its dependencies all come from the image.
+  train:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      # Image names on GHCR must be lowercase.
+      - name: Set the image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG" >> "$GITHUB_ENV"
+      # TODO (Task 3): log in to the registry, pull the image, and run the training in it.
+      - name: Train
+        run: |
+          echo "TODO: pull $IMAGE and run the training in it."
+          exit 1
+      # Keep the trained model, so you can download it from the run's page.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: model
+          path: model/
+          retention-days: 30

@@ -1,0 +1,49 @@
+# GitLab CI/CD pipeline.
+
+# Run on push to a branch.
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
+# Stages run one after the other. Jobs in the same stage run in parallel.
+stages:
+  - lint
+  - test
+  - train
+
+# Only silence warnings in the job log.
+variables:
+  PIP_ROOT_USER_ACTION: ignore
+  UV_LINK_MODE: copy
+
+# Shared settings.
+default:
+  image: python:3.12
+  before_script:
+    - pip install uv
+    - uv sync --locked
+
+# Check the code style without running the code.
+lint:
+  stage: lint
+  script:
+    - uv run ruff format --check .
+    - uv run ruff check .
+
+# Run the tests.
+test:
+  stage: test
+  script:
+    - uv run pytest tests/ -v
+
+# Train the model. Only runs when you click the `run` button in the interface.
+train:
+  stage: train
+  when: manual
+  script:
+    - uv run python -m ci_cd.train
+  # Keep the trained model, so you can download it from the job page.
+  artifacts:
+    paths:
+      - model/
+    expire_in: 1 month

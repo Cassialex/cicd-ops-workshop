@@ -1,0 +1,37 @@
+# GitHub Actions workflow: build the Docker image.
+
+name: Docker
+
+# Run on push to a branch.
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+# Allow the jobs to push images to the GitHub container registry (GHCR).
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Build the image from the `Dockerfile`.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Image names on GHCR must be lowercase.
+      - name: Set the image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Build the image
+        run: docker build -t "$IMAGE:$GITHUB_SHA" .
+      # List what `COPY . .` put in the image. The contents of `.git` and `__pycache__` are hidden.
+      - name: Show the files in the image
+        run: docker run --rm "$IMAGE:$GITHUB_SHA" find . \( -name .git -o -name __pycache__ \) -prune -print -o -print
+      # TODO (Task 2): log in to the registry, tag the image with the branch name, and push both tags.
+
+  # TODO (Task 3): train the model with the new image, once it is pushed.
+  # train:
+  #   needs: build
+  #   uses: ./.github/workflows/train-docker.yml
+  #   with:
+  #     image_tag: ${{ github.sha }}
